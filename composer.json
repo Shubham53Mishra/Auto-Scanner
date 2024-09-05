@@ -1,0 +1,20 @@
+{
+    "name": "anish/autofile",
+    "autoload": {
+        "psr-4": {
+            "Anish\\Autofile\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "anishy9333",
+            "email": "anishy9333@gmail.com"
+        }
+    ],
+    "require": {
+        "guzzlehttp/guzzle": "^7.9",
+        "phpoffice/phpspreadsheet": "^1.23",
+        "maennchen/zipstream-php": "^2.1",
+        "psr/http-message": "^1.0"
+    }
+}
