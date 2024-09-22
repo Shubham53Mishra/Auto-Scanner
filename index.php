@@ -3,19 +3,12 @@
 require 'vendor/autoload.php';
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-// Database connection details
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "segment_message_system";
+include './db/connect_db.php';
 
-// Create connection
-$conn = new mysqli($servername, $username, $password, $dbname);
+// Database connection
+$conn = getDBConnection();
 
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+$TOKEN = "Authorization:Bearer EAARMxPiCSEQBOZBzPDNMiZAj5RrwDzxcaU0ZCgOLI8fezNLbovPj8B2L4NZCJgm963qXp0WRoKNOeZAeZAjaCzOhNUG7zw32ZCO0HTj9IoYS159gIrrvRrHIFHhwZBgwDkK1dhBLeqw07Xeia3eO0Dn3NmWLk3gDuXB07ZC6FJS5s345er51MXjq0J4QZBX6JC1Fw9Cq6N5yCAkc6DwsksMIBrJQxufKEGjpK1ginnYRCR";
 
 // Handle file upload and segment creation
 $message = '';
@@ -50,125 +43,140 @@ if (isset($_POST['create_segment'])) {
         $message = "Error uploading file.";
     }
 }
-
-// Handle sending messages
+    // Handle sending messages
 if (isset($_POST['send_message'])) {
-    $segment_id = $_POST['segment'];
-    $template_name = $_POST['template_name'];
-    $Name = 'Ridobiko'; // Sample data
-    $Date = '20 Aug 2024'; // Sample data
-    $message = '';
-
-    // Fetch phone numbers from the selected segment
-    $stmt = $conn->prepare("SELECT mobile_number FROM segment_users WHERE segment_id = ?");
-    $stmt->bind_param("i", $segment_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if ($result->num_rows > 0) {
-        while ($row = $result->fetch_assoc()) {
-            $number = $row['mobile_number'];
-
-            if (!empty($number)) {
-                // URL for the API endpoint
-                $url = 'https://graph.facebook.com/v20.0/430568443461658/messages'; // Replace with your API endpoint
-
-                // Prepare the data for the API request
-                $data = [
-                    'messaging_product' => 'whatsapp',
-                    'to' => $number,
-                    'type' => 'template',
-                    'template' => [
-                        'name' => $template_name, // Use the selected template name
-                        'language' => [
-                            'code' => 'en_US' // Replace with the appropriate language code
-                        ],
-                        'components' => [
-                            [
-                                'type' => 'body',
-                                'parameters' => [
-                                    ['type' => 'text', 'text' => $Name],        // Corresponds to {{1}}
-                                    ['type' => 'text', 'text' => $Date],        // Corresponds to {{2}}
+        $segment_id = $_POST['segment'];
+        $template_name = $_POST['template_name'];
+        $Name = 'Ridobiko'; // Sample data
+        $Date = '20 Aug 2024'; // Sample data
+        $message = '';
+    
+        // Fetch phone numbers from the selected segment
+        $stmt = $conn->prepare("SELECT mobile_number FROM segment_users WHERE segment_id = ?");
+        
+        // Check if the prepare() function failed
+        if ($stmt === false) {
+            die("Error in preparing statement: " . $conn->error); // Debugging output
+        }
+    
+        $stmt->bind_param("i", $segment_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+    
+        if ($result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $number = $row['mobile_number'];
+    
+                if (!empty($number)) {
+                    // URL for the API endpoint
+                    $url = 'https://graph.facebook.com/v20.0/430568443461658/messages'; 
+    
+                    // Prepare the data for the API request
+                    $data = [
+                        'messaging_product' => 'whatsapp',
+                        'to' => $number,
+                        'type' => 'template',
+                        'template' => [
+                            'name' => $template_name, // Use the selected template name
+                            'language' => [
+                                'code' => 'en_US' // Replace with the appropriate language code
+                            ],
+                            'components' => [
+                                [
+                                    'type' => 'body',
+                                    'parameters' => [
+                                        ['type' => 'text', 'text' => $Name],        // Corresponds to {{1}}
+                                        ['type' => 'text', 'text' => $Date],        // Corresponds to {{2}}
+                                    ]
                                 ]
                             ]
                         ]
-                    ]
-                ];
-
-                // Initialize cURL session
-                $ch = curl_init($url);
-
-                // Set cURL options
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data)); // Encode data here
-                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                    'Accept: application/json',
-                    'Authorization: Bearer EAARMxPiCSEQBOw85ZA1Nnjt70yaFJmSSb1a8orVvYLjofNAzYV3FZAyVj7guanLQOUBdZBLLBnP2ZA90GtDKYslssvCEuOCZBU0p8lZBFhNdiJkiJJsFZC5Bg02vVvKhEFt26nCLGe7lCGo5zpNDENfZCEms7wU1JObP58b33br9PlbPUFoFZB4ZBZBdC02FA9A22JxF5L75aE5tjF1gkchuBgZD', // Replace with a valid access token
-                    'Content-Type: application/json'
-                ]);
-
-                // Execute cURL request and capture the response
-                $response = curl_exec($ch);
-
-                // Check for cURL errors
-                if (curl_errno($ch)) {
-                    $message .= "cURL Error: " . curl_error($ch) . "<br>";
-                } else {
-                    // Get HTTP status code and response
-                    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    $response_data = json_decode($response, true);
-
-                    // Handle API response based on HTTP status code
-                    if ($http_code == 200) {
-                        // Message sent successfully
-                        $message .= "Message sent successfully to $number.<br>";
+                    ];
+    
+                    // Initialize cURL session
+                    $ch = curl_init($url);
+    
+                    // Set cURL options
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data)); // Encode data here
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Accept: application/json',
+                        $TOKEN, // Replace with a valid access token
+                        'Content-Type: application/json'
+                    ]);
+    
+                    // Execute cURL request and capture the response
+                    $response = curl_exec($ch);
+    
+                    // Check for cURL errors
+                    if (curl_errno($ch)) {
+                        $message .= "cURL Error: " . curl_error($ch) . "<br>";
                     } else {
-                        // Display error message with response details for debugging
-                        $message .= "Failed to send message to $number. HTTP Status Code: $http_code<br>";
-                        $message .= "<pre>" . print_r($response_data, true) . "</pre>";
-                    }
-                }
+                        // Get HTTP status code and response
+                        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        $response_data = json_decode($response, true);
+    
+                        // Handle API response based on HTTP status code
+                        if ($http_code == 200) {
+                            $message .= "Message sent successfully to $number.<br>";
+                            $newnumber = "91$number";
 
-                // Close cURL session
-                curl_close($ch);
+                            $messageBody = "Template Name : $template_name<br>Segment ID : $segment_id<br>Parameters : [Name:  $Name, Date: $Date]";
+                            $stmt = $conn->prepare("INSERT INTO messages (mobile_number, message, sender) VALUES (?, ?, 'admin')");
+                            $stmt->bind_param("ss", $newnumber, $messageBody);
+                            $stmt->execute();
+                            $stmt->close();
+
+                        } else {
+                            $message .= "Failed to send message to $number. HTTP Status Code: $http_code<br>";
+                            $message .= "<pre>" . print_r($response_data, true) . "</pre>";
+                        }
+                    }
+    
+                    // Close cURL session
+                    curl_close($ch);
+    
+                    // Store the segment and template information in the segment_template database
+                    $stmt_store = $conn->prepare("INSERT INTO segment_template (segment_id, template_name, mobile_number) VALUES (?, ?, ?)");
+    
+                    // Check if the prepare() function failed
+                    if ($stmt_store === false) {
+                        die("Error in preparing insert statement: " . $conn->error); // Debugging output
+                    }
+    
+                    $stmt_store->bind_param("iss", $segment_id, $template_name, $number);
+                    $stmt_store->execute();
+                }
             }
+                      // Fetch segment templates from the database
+                     $template_details_query = "SELECT segment_template.segment_id, segment_template.template_name, segments.segment_name
+                     FROM segment_template
+                     INNER JOIN segments ON segment_template.segment_id = segments.id";
+                      $templates_result = $conn->query($template_details_query);
+
+        } else {
+            $message = "No phone numbers found for the selected segment.";
         }
-    } else {
-        $message = "No phone numbers found for the selected segment.";
     }
-}
+    
+    
 ?>
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Segment & Message System</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <style>
-        body {
-            padding-top: 20px;
-        }
-        .container {
-            max-width: 800px;
-        }
-        .form-control, .form-control:focus {
-            border-color: #ced4da;
-            box-shadow: none;
-        }
-        .btn-primary {
-            background-color: #007bff;
-            border-color: #007bff;
-        }
-        .alert {
-            margin-top: 20px;
-        }
-    </style>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="./css/style.css" />
+    
 </head>
 <body>
+
 <div class="container">
-    <h2 class="mt-5">Segment & Message System</h2>
+    <h2 class="text-center">Segment & Message System</h2>
 
     <?php if (!empty($message)): ?>
         <div class="alert alert-info"><?php echo $message; ?></div>
@@ -184,7 +192,7 @@ if (isset($_POST['send_message'])) {
             <label for="segment_name">Segment Name:</label>
             <input type="text" name="segment_name" id="segment_name" class="form-control" required>
         </div>
-        <button type="submit" name="create_segment" class="btn btn-primary">Create Segment</button>
+        <button type="submit" name="create_segment" class="btn btn-primary w-100">Create Segment</button>
     </form>
 
     <hr>
@@ -214,16 +222,24 @@ if (isset($_POST['send_message'])) {
                 <option value="payment_reminders">Payment Reminders</option>
             </select>
         </div>
-        <button type="submit" name="send_message" class="btn btn-primary">Send Message</button>
+        <button type="submit" name="send_message" class="btn btn-primary w-100">Send Message</button>
     </form>
 
     <hr>
 
-    <!-- Button to show Webhook Message Display -->
-    <form method="post" action="webhook_display.php">
-        <button type="submit" class="btn btn-secondary">View Webhook Message Display</button>
-    </form>
+    <!-- Button group to show Webhook Message Display and View History side by side -->
+    <div class="btn-group w-100" role="group">
+        <form method="get" action="chat_room.php" class="w-50">
+            <button type="submit" class="btn btn-success w-100">Ridobiko Whatsapp Chatroom</button>
+        </form>
+        <div>....</div>
+        <form method="get" action="history.php" class="w-50">
+            <button type="submit" class="btn btn-warning w-100">Templates Sent History</button>
+        </form>
+    </div>
 
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
